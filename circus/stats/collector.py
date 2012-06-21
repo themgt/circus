@@ -23,7 +23,6 @@ class BaseStatsCollector(ioloop.PeriodicCallback):
             self.streamer.publisher.publish(self.name, stats)
 
     def collect_stats(self):
-        # should be implemented in subclasses
         raise NotImplementedError()
 
 
@@ -83,7 +82,7 @@ class SocketStatsCollector(BaseStatsCollector):
 
     def __init__(self, streamer, name, callback_time=1., io_loop=None):
         super(SocketStatsCollector, self).__init__(streamer, name,
-                                                   callback_time, io_loop)
+                callback_time, io_loop)
         # if gevent is installed, we'll use a greenlet,
         # otherwise we'll use a thread
         try:
@@ -121,7 +120,7 @@ class SocketStatsCollector(BaseStatsCollector):
     def _select(self):
         # collecting hits continuously
         while self.running:
-            sockets = self.streamer.get_sockets()
+            sockets = [sock for sock, address in self.streamer.get_sockets()]
 
             try:
                 rlist, wlist, xlist = select.select(sockets, sockets, sockets,
@@ -160,11 +159,12 @@ class SocketStatsCollector(BaseStatsCollector):
         return hits / self.callback_time
 
     def collect_stats(self):
+        #aggregate = {}
         # sending hits by fd
         sockets = self.streamer.get_sockets()
 
         # we might lose a few hits here but it's ok
-        for sock in sockets:
+        for sock, address in sockets:
             info = {}
             fd = info['fd'] = sock.fileno()
 
@@ -177,6 +177,7 @@ class SocketStatsCollector(BaseStatsCollector):
             info['errors'] = self._persec(self._xstats[fd])
             self._xstats[fd] = 0
 
+            info['address'] = address
             yield info
 
         #raise NotImplementedError()
