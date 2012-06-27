@@ -143,12 +143,11 @@ class Watcher(object):
             raise ValueError("Cannot have %d processes with a singleton "
                              " watcher" % self.numprocesses)
 
-        self.optnames = (("numprocesses", "warmup_delay", "working_dir",
-                      "uid", "gid", "send_hup", "shell", "env", "max_retry",
-                      "cmd", "args", "graceful_timeout", "executable",
-                      "use_sockets", "priority",
-                      "singleton", "stdout_stream_conf", "stderr_stream_conf")
-                      + tuple(options.keys()))
+        self.optnames = ("numprocesses", "warmup_delay", "working_dir",
+                         "uid", "gid", "send_hup", "shell", "env", "max_retry",
+                         "cmd", "args", "graceful_timeout", "executable",
+                         "use_sockets", "priority",
+                         "singleton", "stdout_stream_conf", "stderr_stream_conf") + tuple(options.keys())
 
         if not working_dir:
             # working dir hasn't been set
@@ -314,13 +313,6 @@ class Watcher(object):
           for i in range(self.numprocesses - len(self.processes)):
               self.spawn_process()
               time.sleep(self.warmup_delay)
-
-    def _get_sockets_fds(self):
-        # XXX should be cached
-        fds = {}
-        for name, sock in self.sockets.items():
-            fds[name] = sock.fileno()
-        return fds
 
     def spawn_process(self):
         """Spawn process.
