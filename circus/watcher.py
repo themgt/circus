@@ -308,6 +308,20 @@ class Watcher(object):
             fds[name] = sock.fileno()
         return fds
 
+    @util.debuglog
+    def spawn_needed_processes(self):
+        """Spawn processes.
+        """
+
+        if self.running:
+          return
+
+        if len(self.processes) < self.numprocesses:
+          for i in range(self.numprocesses - len(self.processes)):
+              self.spawn_process()
+              time.sleep(self.warmup_delay)
+
+
     def spawn_process(self):
         """Spawn process.
         """
@@ -425,7 +439,10 @@ class Watcher(object):
     def status(self):
         if self.stopped:
             return "stopped"
-        return "active"
+        elif self.running:
+            return "running"
+        else:
+            return "active"
 
     @util.debuglog
     def process_info(self, pid):
