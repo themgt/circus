@@ -51,10 +51,6 @@ def validate_option(key, val):
         if not isinstance(val, (int, float,)):
             raise MessageError("%r isn't a number" % key)
 
-    if key in ('uid', 'gid',):
-        if not isinstance(val, int) or not isinstance(val, string_types):
-            raise MessageError("%r isn't an integer or string" % key)
-
     if key in ('send_hup', 'shell', ):
         if not isinstance(val, bool):
             raise MessageError("%r isn't a valid boolean" % key)
