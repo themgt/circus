@@ -3,7 +3,7 @@ import os
 import fnmatch
 import sys
 from circus import logger
-
+from circus import util
 
 def watcher_defaults():
     return {
@@ -165,6 +165,8 @@ def get_config(config_file):
                     watcher['uid'] = val
                 elif opt == 'gid':
                     watcher['gid'] = val
+                elif opt == 'env':
+                    watcher['env'] = util.parse_env(val)
                 elif opt == 'send_hup':
                     watcher['send_hup'] = dget(section, 'send_hup', False,
                             bool)
