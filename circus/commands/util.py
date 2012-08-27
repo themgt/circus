@@ -32,17 +32,24 @@ def convert_option(key, val):
         return int(val)
     elif key == "graceful_timeout":
         return float(val)
-    raise ArgumentError("unkown key %r" % key)
+    elif key == 'max_age':
+        return int(val)
+    elif key == 'max_age_variance':
+        return int(val)
+
+    raise ArgumentError("unknown key %r" % key)
 
 
 def validate_option(key, val):
     if key not in ('numprocesses', 'warmup_delay', 'working_dir', 'uid',
             'gid', 'send_hup', 'shell', 'env', 'cmd', 'flapping_attempts',
             'flapping_window', 'retry_in', 'max_retry',
-            'graceful_timeout', 'stdout_stream', 'stderr_stream'):
-        raise MessageError('unkown key %r' % key)
+            'graceful_timeout', 'stdout_stream', 'stderr_stream',
+            'max_age', 'max_age_variance'):
+        raise MessageError('unknown key %r' % key)
 
-    if key in ('numprocesses', 'flapping_attempts', 'max_retry',):
+    if key in ('numprocesses', 'flapping_attempts', 'max_retry',
+                'max_age', 'max_age_variance',):
         if not isinstance(val, int):
             raise MessageError("%r isn't an integer" % key)
 

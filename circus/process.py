@@ -75,7 +75,8 @@ class Process(object):
     - **rlimits**: a mapping containing rlimit names and values that will
       be set before the command runs.
 
-    - use_fds XXX
+    - **use_fds**: if True, will not close the fds in the subprocess.
+      default: False.
     """
     def __init__(self, wid, cmd, args=None, working_dir=None, shell=False,
                  uid=None, gid=None, env=None, rlimits=None, executable=None,
@@ -139,7 +140,6 @@ class Process(object):
         logger.debug('args: ' + str(self.args))
 
         current_env = ObjectDict(self.env.copy())
-        current_env.update(os.environ)
 
         format_kwargs = {
             'wid': self.wid, 'shell': self.shell, 'args': self.args,

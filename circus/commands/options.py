@@ -19,18 +19,15 @@ class Options(Command):
                 "command": "options",
                 "properties": {
                     "name": "nameofwatcher",
-                    "key1": "val1",
-                    ..
                 }
             }
 
-        A message contains 2 properties:
+        A message contains 1 property:
 
-        - keys: list, The option keys for which you want to get the values
         - name: name of watcher
 
         The response return an object with a property "options"
-        containing the list of key/value returned by circus.
+        containing a dictionary of key/value returned by circus.
 
         eg::
 
@@ -86,6 +83,9 @@ class Options(Command):
           definitely kill a process.
         - priority: used to sort watchers in the arbiter
         - singleton: if True, a singleton watcher.
+        - max_age: time a process can live before being restarted
+        - max_age_variance: variable additional time to live, avoids
+          stampeding herd.
     """
 
     name = "options"

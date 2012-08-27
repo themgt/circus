@@ -6,7 +6,8 @@ import unittest
 from psutil import Popen
 
 from circus.util import (get_info, bytes2human, to_bool, parse_env,
-                         env_to_str, to_uid, to_gid, replace_gnu_args)
+                         env_to_str, to_uid, to_gid, replace_gnu_args,
+                         StrictConfigParser)
 
 
 class TestUtil(unittest.TestCase):
@@ -40,6 +41,7 @@ class TestUtil(unittest.TestCase):
     def test_parse_env(self):
         env = 'test=1,booo=2'
         parsed = parse_env(env)
+        self.assertEqual(parsed, {'test': '1', 'booo': '2'})
         self.assertEqual(env_to_str(parsed), env)
 
     def test_to_uidgid(self):
@@ -116,3 +118,8 @@ class TestUtil(unittest.TestCase):
         self.assertEquals('thats an int 2',
                           repl('thats an int $(me)', prefix=None,
                           me=2))
+
+    def test_strict_parser(self):
+        cp = StrictConfigParser()
+        bad_ini = os.path.join(os.path.dirname(__file__), 'bad.ini')
+        self.assertRaises(ValueError, cp.read, bad_ini)

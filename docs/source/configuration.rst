@@ -66,7 +66,9 @@ circus - single section
         The host ran by the circushttpd daemon. (default: localhost)
     **httpd_port**
         The port ran by the circushttpd daemon. (default: 8080)
-
+    **debug**
+        If set to True, all Circus stout/stderr daemons are redirected to circusd
+        stdout/stderr (default: False)
 
 .. note::
 
@@ -103,6 +105,10 @@ watcher:NAME - as many sections as you want
     **copy_env**
         If set to true, the local environment variables will be copied and
         passed to the workers when spawning them. (Default: False)
+    **copy_path**
+        If set to true, **sys.path** is passed in the subprocess environ
+        using *PYTHONPATH*. **copy_env** has to be true.
+        (Default: False)
     **warmup_delay**
         The delay (in seconds) between running processes.
     **numprocesses**
@@ -167,6 +173,17 @@ watcher:NAME - as many sections as you want
         via their file descriptors. If False, all parent fds are closed
         when the child process is forked. Defaults to False.
 
+    **max_age**
+        If set then the process will be restarted sometime after max_age
+        seconds. This is useful when processes deal with pool of connectors:
+        restarting processes improves the load balancing. Defaults to being
+        disabled.
+
+    **max_age_variance**
+        If max_age is set then the process will live between max_age and
+        max_age + random(0, max_age_variance) seconds. This avoids restarting
+        all processes for a watcher at once. Defaults to 30 seconds.
+
 
 plugin:NAME - as many sections as you want
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -178,7 +195,7 @@ plugin:NAME - as many sections as you want
 
 
 socket:NAME - as many sections as you want
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     **host**
         The host of the socket. Defaults to 'localhost'
     **port**

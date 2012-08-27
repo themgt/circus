@@ -9,7 +9,7 @@ Running a WSGI application
 --------------------------
 
 
-Running a WGSI application with Circus is quite interesting because you can
+Running a WSGI application with Circus is quite interesting because you can
 watch & manage your *web workers* using *circus-top*, *circusctl* or
 the Web interface.
 
@@ -94,7 +94,7 @@ providing a fully qualified name for a WSGI python, you provide the path to
 the Django application, by prefixing it with **django:**::
 
     $ chaussette django:path/to/mysite
-    Application is <pyramid.router.Router object at 0x10a4d4bd0>
+    Application is <django.core.handlers.wsgi.WSGIHandler object at 0x...>
     Serving on localhost:8080
     Using <class 'chaussette.backend._waitress.Server'> as a backend
 
@@ -108,5 +108,3 @@ can explicitely give it with the **--django-settings** option::
 
 
 See http://chaussette.readthedocs.org for more info on this.
-
-
