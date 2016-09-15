@@ -23,6 +23,9 @@ class LiveClient(object):
         self.plugins = []
         self.stats = defaultdict(list)
         self.dstats = []
+        self.sockets = None
+        self.use_sockets = False
+        self.embed_httpd = False
 
     def stop(self):
         self.client.stop()
@@ -33,16 +36,25 @@ class LiveClient(object):
         If circus is not connected raises an error.
         """
         self.watchers = []
+        self.plugins = []
+
         # trying to list the watchers
         try:
             self.connected = True
             for watcher in self.client.send_message('list')['watchers']:
-                if watcher == 'circusd-stats':
+                if watcher in ('circusd-stats', 'circushttpd'):
+                    if watcher == 'circushttpd':
+                        self.embed_httpd = True
                     continue
-                options = self.client.send_message('options', name=watcher)
-                self.watchers.append((watcher, options['options']))
+
+                options = self.client.send_message('options',
+                                                   name=watcher)['options']
+                self.watchers.append((watcher, options))
                 if watcher.startswith('plugin:'):
                     self.plugins.append(watcher)
+
+                if not self.use_sockets and options.get('use_sockets', False):
+                    self.use_sockets = True
 
             self.watchers.sort()
             self.stats_endpoint = self.get_global_options()['stats_endpoint']
@@ -50,8 +62,9 @@ class LiveClient(object):
             self.connected = False
 
     def killproc(self, name, pid):
-        res = self.client.send_message('signal', name=name, process=int(pid),
-                                       signum=9)
+        # killing a proc and its children
+        res = self.client.send_message('signal', name=name, pid=int(pid),
+                                       signum=9, recursive=True)
         self.update_watchers()  # will do better later
         return res
 
@@ -89,6 +102,12 @@ class LiveClient(object):
     def get_pids(self, name):
         res = self.client.send_message('list', name=name)
         return res['pids']
+
+    def get_sockets(self, force_reload=False):
+        if not self.sockets or force_reload:
+            res = self.client.send_message('listsockets')
+            self.sockets = res['sockets']
+        return self.sockets
 
     def get_series(self, name, pid, field, start=0, end=-1):
         stats = self.get_stats(name, start, end)

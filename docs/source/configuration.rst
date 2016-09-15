@@ -13,7 +13,7 @@ Example::
 
     [watcher:myprogram]
     cmd = python
-    args = -u myprogram.py $WID
+    args = -u myprogram.py $(WID) $(ENV.VAR)
     warmup_delay = 0
     numprocesses = 5
 
@@ -29,9 +29,13 @@ Example::
     sample_rate = 1.0
     application_name = example
 
+    [socket:web]
+    host = localhost
+    port = 8080
 
 
-circus (single section)
+
+circus - single section
 ~~~~~~~~~~~~~~~~~~~~~~~
     **endpoint**
         The ZMQ socket used to manage Circus via **circusctl**.
@@ -54,7 +58,17 @@ circus (single section)
     **stream_backend**
         Defines the type of backend to use for the streaming. Possible
         values are **thread** or **gevent**. (default: thread)
-
+    **warmup_delay**
+        The interval in seconds between two watchers start. (default: 0)
+    **httpd**
+        If set to True, Circus runs the circushttpd daemon. (default: False)
+    **httpd_host**
+        The host ran by the circushttpd daemon. (default: localhost)
+    **httpd_port**
+        The port ran by the circushttpd daemon. (default: 8080)
+    **debug**
+        If set to True, all Circus stout/stderr daemons are redirected to circusd
+        stdout/stderr (default: False)
 
 .. note::
 
@@ -64,14 +78,18 @@ circus (single section)
    not made it upstream yet.
 
 
-watcher:NAME (as many sections as you want)
+watcher:NAME - as many sections as you want
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     **NAME**
         The name of the watcher. This name is used in **circusctl**
     **cmd**
         The executable program to run.
     **args**
-        Command-line arguments to pass to the program
+        Command-line arguments to pass to the program. You can use the python
+        format syntax here to build the parameters. Environment variables are
+        available, as well as the worker id and the environment variables that
+        you passed, if any, with the "env" parameter. See
+        :ref:`formating_cmd` for more information on this.
     **shell**
         If True, the processes are run in the shell (default: False)
     **working_dir**
@@ -84,6 +102,13 @@ watcher:NAME (as many sections as you want)
         with. (The current gid is the default).
     **env**
         The environment passed to the processes (default: None)
+    **copy_env**
+        If set to true, the local environment variables will be copied and
+        passed to the workers when spawning them. (Default: False)
+    **copy_path**
+        If set to true, **sys.path** is passed in the subprocess environ
+        using *PYTHONPATH*. **copy_env** has to be true.
+        (Default: False)
     **warmup_delay**
         The delay (in seconds) between running processes.
     **numprocesses**
@@ -141,12 +166,70 @@ watcher:NAME (as many sections as you want)
 
     **singleton**
         If set to True, this watcher will have at the most one process.
-        Default to False.
+        Defaults to False.
 
-plugin:NAME (as many sections as you want)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    **use_sockets**
+        If set to True, this watcher will be able to access defined sockets
+        via their file descriptors. If False, all parent fds are closed
+        when the child process is forked. Defaults to False.
+
+    **max_age**
+        If set then the process will be restarted sometime after max_age
+        seconds. This is useful when processes deal with pool of connectors:
+        restarting processes improves the load balancing. Defaults to being
+        disabled.
+
+    **max_age_variance**
+        If max_age is set then the process will live between max_age and
+        max_age + random(0, max_age_variance) seconds. This avoids restarting
+        all processes for a watcher at once. Defaults to 30 seconds.
+
+
+plugin:NAME - as many sections as you want
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     **use**
         The fully qualified name that points to the plugin class.
     **anything else**
         Every other key found in the section is passed to the
         plugin constructor in the **config** mapping.
+
+
+socket:NAME - as many sections as you want
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    **host**
+        The host of the socket. Defaults to 'localhost'
+    **port**
+        The port. Defaults to 8080.
+    **family**
+        The socket family. Can be 'AF_UNIX', 'AF_INET' or 'AF_INET6'.
+        Defaults to 'AF_INET'.
+    **type**
+        The socket type. Can be 'SOCK_STREAM', 'SOCK_DGRAM', 'SOCK_RAW',
+        'SOCK_RDM' or 'SOCK_SEQPACKET'. Defaults to 'SOCK_STREAM'.
+
+
+Once a socket is created, the *${socket:NAME}* string can be used in the
+command of a watcher. Circus will replace it by the FD value.
+
+.. _formating_cmd:
+
+Formating the commands and arguments with dynamic variables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As you may have seen, it is possible to pass some information that are computed
+dynamically when running the processes. Among other things, you can get the
+worker id (WID) and all the options that are passed to the :class:`Process`.
+Additionally, it is possible to access the options passed to the
+:class:`Watcher` which instanciated the process.
+
+For instance, if you want to access some variables that are contained in the
+environment, you would need to do it with a setting like this::
+
+    cmd = "make-me-a-coffee --sugar $(CIRCUS.ENV.SUGAR_AMOUNT)"
+
+This works with both `cmd` and `args`.
+
+**Important**:
+
+- All variables are prefixed with `circus.`
+- The replacement is case insensitive.

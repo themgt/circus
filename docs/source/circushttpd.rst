@@ -26,17 +26,27 @@ The Web Console lets you:
    By default, this option is not activated.
 
 The web console needs a few dependencies that you can install them using the
-web-requirements.txt file::
+web-requirements.txt file. Additionally, you will need to have gevent (and thus
+libevent) installed on your system to make this working::
 
     $ bin/pip install -r web-requirements.txt
 
-To enable the console, run the **circushttpd** script::
+To enable the console, add a few options in the Circus ini file::
+
+    [circus]
+    httpd = True
+    httpd_host = localhost
+    httpd_port = 8080
+
+
+*httpd_host* and *httpd_port* are optional, and default to *localhost* and *8080*.
+
+If you want to run the web app on its own, just run the **circushttpd** script::
 
     $ circushttpd
     Bottle server starting up...
     Listening on http://localhost:8080/
     Hit Ctrl-C to quit.
-
 
 By default the script will run the Web Console on port 8080, but the --port option can
 be used to change it.
@@ -51,7 +61,6 @@ You should get this screen:
    :target: ../_images/web-login.png
    :align: center
    :height: 400px
-
 
 
 The Web Console is ready to be connected to a Circus system, given its **endpoint**.
@@ -90,46 +99,42 @@ in the left menu:
    :height: 400px
 
 
-
-Running behind Nginx & Gunicorn
--------------------------------
+Embedding circushttpd into Circus
+---------------------------------
 
 *circushttpd* is a WSGI application so you can run it with any web server that's
 compatible with that protocol. By default it uses the standard library
 **wsgiref** server, but that server does not really support any load.
 
-A nice combo is Gunicorn & Nginx:
+You can use `Chaussette <http://chaussette.readthedocs.org>`_ to bind a WSGI
+server and have *circushttpd* managed by Circus itself.
 
-- Gunicorn is the WSGI web server and serves the Web application on the
-  8080 port.
-- Nginx acts as a proxy in front of Gunicorn. It an also deal with security.
+To do so, make sure Chaussette is installed::
 
-Gunicorn
-::::::::
-
-To run Gunicorn, make sure Gunicorn is installed in your environment and
-simply use the **--server** option::
-
-    $ pip install gunicorn
-    $ bin/circushttpd --server gunicorn
-    Bottle server starting up (using GunicornServer())...
-    Listening on http://localhost:8080/
-    Hit Ctrl-C to quit.
-
-    2012-05-14 15:10:54 [13536] [INFO] Starting gunicorn 0.14.2
-    2012-05-14 15:10:54 [13536] [INFO] Listening at: http://127.0.0.1:8080 (13536)
-    2012-05-14 15:10:54 [13536] [INFO] Using worker: sync
-    2012-05-14 15:10:54 [13537] [INFO] Booting worker with pid: 13537
+    $ pip install chaussette
 
 
-If you want to use another server, you can pick any server listed in
-http://bottlepy.org/docs/dev/tutorial.html#multi-threaded-server
+Then add a new *watcher* and a *socket* sections in your ini file::
 
-Nginx
-:::::
+    [watcher:webconsole]
+    cmd = chaussette --fd $(circus.sockets.webconsole) circus.web.circushttpd.app
+    singleton = 1
+    use_sockets = 1
+
+    [socket:webconsole]
+    host = 127.0.0.0
+    port = 8080
+
+That's it !
+
+
+Running behind Nginx
+--------------------
+
+Nginx can act as a proxy in front of Circus. It an also deal with security.
 
 To hook Nginx, you define a *location* directive that proxies the calls
-to Gunicorn.
+to Circus.
 
 Example::
 
@@ -144,8 +149,8 @@ Example::
         proxy_pass http://127.0.0.1:8080;
     }
 
-If you want a more complete Nginx configuration example, have a
-look at : http://gunicorn.org/deploy.html
+
+If you want more configuration options, see http://wiki.nginx.org/HttpProxyModule.
 
 
 Password-protect circushttpd
@@ -179,9 +184,10 @@ many other techniques.
 Extending the web console
 -------------------------
 
-We chosed to use bottle to build the webconsole, mainly because it's a really
+We picked *bottle* to build the webconsole, mainly because it's a really
 tiny framework that doesn't do much. By having a look at the code of the web
 console, you'll eventually find out that it's really simple to understand.
+
 Here is how it's split:
 
 * The `circushttpd.py` file contains the "views" definitions and some code to
@@ -201,6 +207,6 @@ existing. A few tools are at your disposal to ease the process:
   you can use the `run_command` function, which takes a callable as a first
   argument, a message in case of success and a redirection url.
 
-You may also encounter the StatsNamespace class. It's the class which manages
+The :class:`StatsNamespace` class is responsible for managing
 the websocket communication on the server side. Its documentation should help
 you to understand what it does.

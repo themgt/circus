@@ -1,8 +1,34 @@
 CHANGES
 =======
 
-0.5
----
+0.6.0 - XXX
+-----------
+
+0.5.1 - 2012-07-11
+------------------
+
+* Fixed a bunch of typos in the documentation
+* Added the debug option
+* Package web-requirements.txt properly
+* Added a errno error code in the messages - fixes #111
+
+0.5 - 2012-07-06
+----------------
+
+* added socket support
+* added a listsocket command
+* sockets have stats too !
+* fixed a lot of small bugs
+* removed the wid - now using pid everywhere
+* faster tests
+* changed the variables syntax
+* use pyzmq's ioloop in more places
+* now using iowait for all select() calls
+* incr/decr commands now have an nbprocess parameter
+* Add a reproduce_env option to watchers
+* Add a new UNEXISTING status to the processes
+* Added the global *httpd* option to run circushttpd as a watcher
+
 
 0.4 - 2012-06-12
 ----------------

@@ -2,9 +2,7 @@ import ConfigParser
 import os
 import fnmatch
 import sys
-
-from circus.stream import FileStream
-from circus import util
+from circus import logger
 
 
 def watcher_defaults():
@@ -25,9 +23,11 @@ def watcher_defaults():
         'rlimits': dict(),
         'stderr_stream': dict(),
         'stdout_stream': dict(),
-        'stream_backend': 'thread',
         'priority': 0,
-        'use_sockets': False}
+        'use_sockets': False,
+        'singleton': False,
+        'copy_env': False,
+        'copy_path': False}
 
 
 class DefaultConfigParser(ConfigParser.ConfigParser):
@@ -77,9 +77,12 @@ def read_config(config_path):
     for include_dir in cfg.dget('circus', 'include_dir', '').split():
         include_filename(os.path.join(include_dir, '*.ini'))
 
+    logger.debug('reading config files: %s' % includes)
+
     cfg_files_read.extend(cfg.read(includes))
 
     return cfg, cfg_files_read
+
 
 def get_config(config_file):
     if not os.path.exists(config_file):
@@ -98,8 +101,12 @@ def get_config(config_file):
     config['pubsub_endpoint'] = dget('circus', 'pubsub_endpoint',
                                      'tcp://127.0.0.1:5556')
     config['stats_endpoint'] = dget('circus', 'stats_endpoint', None, str)
+    config['warmup_delay'] = dget('circus', 'warmup_delay', 0, int)
+    config['httpd'] = dget('circus', 'httpd', False, bool)
+    config['httpd_host'] = dget('circus', 'httpd_host', 'localhost', str)
+    config['httpd_port'] = dget('circus', 'httpd_port', 8080, int)
+    config['debug'] = dget('circus', 'debug', False, bool)
     stream_backend = dget('circus', 'stream_backend', 'thread')
-
     if stream_backend == 'gevent':
         try:
             import gevent           # NOQA
@@ -125,7 +132,7 @@ def get_config(config_file):
     for section in cfg.sections():
         if section.startswith("socket:"):
             sock = dict(cfg.items(section))
-            sock['name'] = section.split("socket:")[-1]
+            sock['name'] = section.split("socket:")[-1].lower()
             sockets.append(sock)
 
         if section.startswith("plugin:"):
@@ -181,13 +188,25 @@ def get_config(config_file):
                 elif opt == 'use_sockets':
                     watcher['use_sockets'] = dget(section, "use_sockets",
                                                   False, bool)
+                elif opt == 'singleton':
+                    watcher['singleton'] = dget(section, "singleton", False,
+                                                bool)
+                elif opt == 'stream_backend':
+                    watcher['stream_backend'] = val
+                elif opt == 'copy_env':
+                    watcher['copy_env'] = dget(section, "copy_env", False,
+                                                bool)
+                elif opt == 'copy_path':
+                    watcher['copy_path'] = dget(section, "copy_path", False,
+                                                bool)
+
                 else:
                     # freeform
                     watcher[opt] = val
 
             # set the stream backend
-            watcher['stream_backend'] = stream_backend
-
+            if 'stream_backend' not in watcher:
+                watcher['stream_backend'] = stream_backend
             watchers.append(watcher)
 
     config['watchers'] = watchers

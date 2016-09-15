@@ -18,7 +18,11 @@ _TYPE = {
 
 
 def addrinfo(host, port):
-    return socket.getaddrinfo(host, port)[0][-1]
+    for _addrinfo in socket.getaddrinfo(host, port):
+        if len(_addrinfo[-1]) == 2:
+            return _addrinfo[-1][-2], _addrinfo[-1][-1]
+
+    raise ValueError((host, port))
 
 
 class CircusSocket(socket.socket):
@@ -30,6 +34,7 @@ class CircusSocket(socket.socket):
         super(CircusSocket, self).__init__(family=family, type=type,
                                            proto=proto)
         self.name = name
+        self.socktype = type
         self.host, self.port = addrinfo(host, port)
         self.backlog = backlog
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -38,9 +43,15 @@ class CircusSocket(socket.socket):
         return 'socket %r at %s:%d' % (self.name, self.host, self.port)
 
     def bind_and_listen(self):
-        self.bind((self.host, self.port))
+        try:
+            self.bind((self.host, self.port))
+        except socket.error:
+            logger.error('Could not bind %s:%d' % (self.host, self.port))
+            raise
+
         self.setblocking(0)
-        self.listen(self.backlog)
+        if self.socktype in (socket.SOCK_STREAM, socket.SOCK_SEQPACKET):
+            self.listen(self.backlog)
         self.host, self.port = self.getsockname()
         logger.debug('Socket bound at %s:%d - fd: %d' % (self.host, self.port,
                                                          self.fileno()))

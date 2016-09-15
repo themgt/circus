@@ -40,12 +40,27 @@ class Arbiter(object):
 
         - **use** -- Fully qualified name that points to the plugin class
         - every other value is passed to the plugin in the **config** option
-
-    XXX sockets
+    - **sockets** -- a mapping of sockets. Each key is the socket name,
+      and each value a :class:`CircusSocket` class. (default: None)
+    - **warmup_delay** -- a delay in seconds between two watchers startup.
+      (default: 0)
+    - **httpd** -- If True, a circushttpd process is run (default: False)
+    - **httpd_host** -- the circushttpd host (default: localhost)
+    - **httpd_port** -- the circushttpd port (default: 8080)
+    - **debug** -- if True, adds a lot of debug info in teh stdout (default:
+      False)
+    - **stream_backend** -- the backend that will be used for the streaming
+      process. Can be *thread* or *gevent*. When set to *gevent* you need
+      to have *gevent* and *gevent_zmq* installed.
+      All watchers will use this setup unless stated otherwise in the
+      watcher configuration. (default: thread)
     """
     def __init__(self, watchers, endpoint, pubsub_endpoint, check_delay=1.,
                  prereload_fn=None, context=None, loop=None,
-                 stats_endpoint=None, plugins=None, sockets=None):
+                 stats_endpoint=None, plugins=None, sockets=None,
+                 warmup_delay=0, httpd=False, httpd_host='localhost',
+                 httpd_port=8080, debug=False, stream_backend='thread'):
+        self.stream_backend = stream_backend
         self.watchers = watchers
         self.endpoint = endpoint
         self.check_delay = check_delay
@@ -62,6 +77,11 @@ class Arbiter(object):
         self._watchers_names = {}
         self.alive = True
         self._lock = RLock()
+        self.debug = debug
+        if self.debug:
+            stdout_stream = stderr_stream = {'class': 'StdoutStream'}
+        else:
+            stdout_stream = stderr_stream = None
 
         # initializing circusd-stats as a watcher when configured
         self.stats_endpoint = stats_endpoint
@@ -71,8 +91,35 @@ class Arbiter(object):
             cmd += ' --endpoint %s' % self.endpoint
             cmd += ' --pubsub %s' % self.pubsub_endpoint
             cmd += ' --statspoint %s' % self.stats_endpoint
-            stats_watcher = Watcher('circusd-stats', cmd)
+            stats_watcher = Watcher('circusd-stats', cmd, use_sockets=True,
+                                    singleton=True,
+                                    stdout_stream=stdout_stream,
+                                    stderr_stream=stderr_stream,
+                                    stream_backend=self.stream_backend,
+                                    copy_env=True, copy_path=True)
             self.watchers.append(stats_watcher)
+
+        # adding the httpd
+        if httpd:
+            cmd = ("%s -c 'from circus.web import circushttpd; "
+                   "circushttpd.main()'") % sys.executable
+            cmd += ' --endpoint %s' % self.endpoint
+            cmd += ' --fd $(circus.sockets.circushttpd)'
+            httpd_watcher = Watcher('circushttpd', cmd, use_sockets=True,
+                                    singleton=True,
+                                    stdout_stream=stdout_stream,
+                                    stderr_stream=stderr_stream,
+                                    stream_backend=self.stream_backend,
+                                    copy_env=True, copy_path=True)
+            self.watchers.append(httpd_watcher)
+            httpd_socket = CircusSocket(name='circushttpd', host=httpd_host,
+                                        port=httpd_port)
+
+            # adding the socket
+            if sockets is None:
+                sockets = [httpd_socket]
+            else:
+                sockets.append(httpd_socket)
 
         # adding each plugin as a watcher
         if plugins is not None:
@@ -81,10 +128,15 @@ class Arbiter(object):
                 name = 'plugin:%s' % fqnd.replace('.', '-')
                 cmd = get_plugin_cmd(plugin, self.endpoint,
                                      self.pubsub_endpoint, self.check_delay)
-                plugin_watcher = Watcher(name, cmd, priority=1, singleton=True)
+                plugin_watcher = Watcher(name, cmd, priority=1, singleton=True,
+                                         stdout_stream=stdout_stream,
+                                         stderr_stream=stderr_stream,
+                                         stream_backend=self.stream_backend,
+                                         copy_env=True, copy_path=True)
                 self.watchers.append(plugin_watcher)
 
         self.sockets = CircusSockets(sockets)
+        self.warmup_delay = warmup_delay
 
     @classmethod
     def load_from_config(cls, config_file):
@@ -106,7 +158,13 @@ class Arbiter(object):
                       check_delay=cfg.get('check_delay', 1.),
                       prereload_fn=cfg.get('prereload_fn'),
                       stats_endpoint=cfg.get('stats_endpoint'),
-                      plugins=cfg.get('plugins'), sockets=sockets)
+                      plugins=cfg.get('plugins'), sockets=sockets,
+                      warmup_delay=cfg.get('warmup_delay', 0),
+                      httpd=cfg.get('httpd', False),
+                      httpd_host=cfg.get('httpd_host', 'localhost'),
+                      httpd_port=cfg.get('httpd_port', 8080),
+                      debug=cfg.get('debug', False),
+                      stream_backend=cfg.get('stream_backend', 'thread'))
 
         return arbiter
 
@@ -156,6 +214,7 @@ class Arbiter(object):
         logger.debug('Initializing watchers')
         for watcher in self.iter_watchers():
             watcher.start()
+            time.sleep(self.warmup_delay)
 
         logger.info('Arbiter now waiting for commands')
         while True:
@@ -242,6 +301,7 @@ class Arbiter(object):
         # gracefully reload watchers
         for watcher in self.iter_watchers():
             watcher.reload(graceful=graceful)
+            time.sleep(self.warmup_delay)
 
     def numprocesses(self):
         """Return the number of processes running across all watchers."""
@@ -299,6 +359,7 @@ class Arbiter(object):
     def start_watchers(self):
         for watcher in self.iter_watchers():
             watcher.start()
+            time.sleep(self.warmup_delay)
 
     def stop_watchers(self, stop_alive=False):
         if not self.alive:

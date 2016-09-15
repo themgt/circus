@@ -6,7 +6,7 @@ import unittest
 from psutil import Popen
 
 from circus.util import (get_info, bytes2human, to_bool, parse_env,
-                         env_to_str, to_uid, to_gid)
+                         env_to_str, to_uid, to_gid, replace_gnu_args)
 
 
 class TestUtil(unittest.TestCase):
@@ -40,6 +40,7 @@ class TestUtil(unittest.TestCase):
     def test_parse_env(self):
         env = 'test=1,booo=2'
         parsed = parse_env(env)
+        self.assertEqual(parsed, {'test': '1', 'booo': '2'})
         self.assertEqual(env_to_str(parsed), env)
 
     def test_to_uidgid(self):
@@ -87,3 +88,32 @@ class TestUtil(unittest.TestCase):
             self.assertRaises(KeyError, getpwuid, uid_min - 1)
             self.assertRaises(KeyError, getgrgid, gid_max + 1)
             self.assertRaises(KeyError, getgrgid, gid_min - 1)
+
+    def test_replace_gnu_args(self):
+        repl = replace_gnu_args
+
+        self.assertEquals('dont change --fd $(circus.me) please',
+                          repl('dont change --fd $(circus.me) please'))
+
+        self.assertEquals('thats an int 2',
+                          repl('thats an int $(circus.me)',
+                          me=2))
+
+        self.assertEquals('foobar', replace_gnu_args('$(circus.test)',
+                          test='foobar'))
+        self.assertEquals('foobar', replace_gnu_args('$(circus.test)',
+                          test='foobar'))
+        self.assertEquals('foo, foobar, baz',
+                          replace_gnu_args('foo, $(circus.test), baz',
+                              test='foobar'))
+
+        self.assertEquals('foobar', replace_gnu_args('$(cir.test)',
+                                                     prefix='cir',
+                                                     test='foobar'))
+        self.assertEquals('thats an int 2',
+                          repl('thats an int $(s.me)', prefix='s',
+                          me=2))
+
+        self.assertEquals('thats an int 2',
+                          repl('thats an int $(me)', prefix=None,
+                          me=2))

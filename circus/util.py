@@ -5,12 +5,18 @@ import os
 import pwd
 import fcntl
 from functools import wraps
+import re
 import sys
 import shlex
+import time
 
 from psutil.error import AccessDenied, NoSuchProcess
 from psutil import Process
 from circus import logger
+
+# string constants
+DEFAULT_ENDPOINT_SUB = "tcp://127.0.0.1:5556"
+DEFAULT_ENDPOINT_DEALER = "tcp://127.0.0.1:5555"
 
 
 try:
@@ -166,7 +172,10 @@ def get_info(process=None, interval=0, with_childs=False):
         info['username'] = 'N/A'
 
     try:
-        info['nice'] = process.nice
+        try:
+            info['nice'] = process.get_nice()
+        except AttributeError:
+            info['nice'] = process.nice
     except AccessDenied:
         info['nice'] = 'N/A'
     except NoSuchProcess:
@@ -176,6 +185,16 @@ def get_info(process=None, interval=0, with_childs=False):
         cmdline = os.path.basename(shlex.split(process.cmdline[0])[0])
     except (AccessDenied, IndexError):
         cmdline = "N/A"
+
+    try:
+        info['create_time'] = process.create_time
+    except AccessDenied:
+        info['create_time'] = 'N/A'
+
+    try:
+        info['age'] = time.time() - process.create_time
+    except AccessDenied:
+        info['age'] = 'N/A'
 
     info['cmdline'] = cmdline
 
@@ -339,3 +358,61 @@ def resolve_name(name):
             raise ImportError(exc)
 
     return ret
+
+
+_CIRCUS_VAR = re.compile(r'\$\(circus\.([\w\.]+)\)', re.I)
+
+
+def replace_gnu_args(data, prefix='circus', **options):
+    fmt_options = {}
+    for key, value in options.items():
+        key = key.lower()
+
+        if prefix is not None:
+            key = '%s.%s' % (prefix, key)
+
+        if isinstance(value, dict):
+            for subkey, subvalue in value.items():
+                subkey = subkey.lower()
+                subkey = '%s.%s' % (key, subkey)
+                fmt_options[subkey] = subvalue
+        else:
+            fmt_options[key] = value
+
+    if prefix is None:
+        match = re.compile(r'\$\(([\w\.]+)\)', re.I)
+    elif prefix == 'circus':
+        match = _CIRCUS_VAR
+    else:
+        match = re.compile(r'\$\(%s\.([\w\.]+)\)' % prefix, re.I)
+
+    def _repl(matchobj):
+        option = matchobj.group(1).lower()
+
+        if prefix is not None and not option.startswith(prefix):
+            option = '%s.%s' % (prefix, option)
+
+        if option in fmt_options:
+            return str(fmt_options[option])
+
+        return matchobj.group(0)
+
+    return match.sub(_repl, data)
+
+
+class ObjectDict(dict):
+    def __getattr__(self, item):
+        return self[item]
+
+
+def configure_logger(logger, level='INFO', output="-"):
+    loglevel = LOG_LEVELS.get(level.lower(), logging.INFO)
+    logger.setLevel(loglevel)
+    if output == "-":
+        h = logging.StreamHandler()
+    else:
+        h = logging.FileHandler(output)
+        close_on_exec(h.stream.fileno())
+    fmt = logging.Formatter(LOG_FMT, LOG_DATE_FMT)
+    h.setFormatter(fmt)
+    logger.addHandler(h)

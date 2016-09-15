@@ -1,12 +1,14 @@
+import _patch       # NOQA
 import logging
 import os
 import sys
 
 
 try:
-    import gevent       # NOQA
+    from gevent import monkey       # NOQA
     try:
         from gevent_zeromq import monkey_patch, IOLOOP_IS_MONKEYPATCHED  # NOQA
+        monkey.patch_all()
         monkey_patch()
     except ImportError:
         msg = """We have detected that you have gevent in your
@@ -25,7 +27,7 @@ except ImportError:
     pass
 
 
-version_info = (0, 5)
+version_info = (0, 6, 0)
 __version__ = ".".join(map(str, version_info))
 
 
